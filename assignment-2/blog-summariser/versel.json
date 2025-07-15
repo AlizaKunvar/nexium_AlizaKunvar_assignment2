@@ -1,8 +1,8 @@
 {
   "functions": {
-    "api/**/*.ts": {
-      "memory": 1024,
-      "maxDuration": 30
+    "api/submit.ts": {
+      "maxDuration": 60,
+      "memory": 1024
     }
   }
 }
