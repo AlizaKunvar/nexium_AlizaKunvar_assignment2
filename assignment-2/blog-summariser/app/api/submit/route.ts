@@ -12,13 +12,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing URL" }, { status: 400 });
     }
 
-    console.log("📌 Processing URL:", url);
-
+    // ✅ 1. Scrape, Summarise & Translate
     const fullText = await scrapeBlog(url);
     const summary = fakeSummarise(fullText);
     const urduSummary = translateToUrdu(summary);
 
-    // ✅ Save to Supabase (no MongoDB now)
+    // ✅ 2. Save summary in Supabase
     const { error: supabaseError } = await supabase.from("summaries").insert([
       {
         url,
@@ -33,6 +32,7 @@ export async function POST(req: NextRequest) {
       console.log("✅ Supabase Insert Success");
     }
 
+    // ✅ 3. Return Response
     return NextResponse.json({ summary, urduSummary });
   } catch (error: any) {
     console.error("API Error:", error);

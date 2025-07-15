@@ -1,69 +1,57 @@
-import axios from "axios";
 import * as cheerio from "cheerio";
-import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
+import axios from "axios";
 
-/**
- * Universal Scraper:
- * 1. Try Axios + Cheerio (fast)
- * 2. If fails or small content -> Fallback to Puppeteer (renders JavaScript-heavy pages)
- */
 export async function scrapeBlog(url: string): Promise<string> {
   try {
-    console.log("🔹 Trying Axios Scraper...");
+    console.log("📌 Processing URL:", url);
 
-    const { data } = await axios.get(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        Accept: "text/html",
-      },
+    // 1️⃣ Try Axios first
+    try {
+      const { data } = await axios.get(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      });
+
+      const $ = cheerio.load(data);
+      const article =
+        $("article").text().trim() ||
+        $("main").text().trim() ||
+        $("body").text().trim();
+
+      if (article.length > 100) {
+        console.log("✅ Axios Scraper Worked");
+        return article.slice(0, 5000);
+      }
+      throw new Error("Not enough content with Axios");
+    } catch (err) {
+      console.log("🔹 Axios failed, switching to Puppeteer...");
+    }
+
+    // 2️⃣ Fallback: Puppeteer
+    const browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
     });
 
-    const $ = cheerio.load(data);
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: "networkidle2" });
 
-    let content =
+    const content = await page.content();
+    await browser.close();
+
+    const $ = cheerio.load(content);
+    const article =
       $("article").text().trim() ||
       $("main").text().trim() ||
-      $("div").text().trim() ||
-      $("p").text().trim();
+      $("body").text().trim();
 
-    // Meta fallback
-    if (!content || content.length < 100) {
-      content =
-        $('meta[name="description"]').attr("content") ||
-        $('meta[property="og:description"]').attr("content") ||
-        $("title").text();
-    }
-
-    if (content && content.length > 100) {
-      console.log("✅ Axios Scraper Success");
-      return content.slice(0, 15000);
-    }
-
-    console.warn("⚠️ Axios content too small, switching to Puppeteer...");
-  } catch (err: any) {
-    console.warn("Axios scraper failed, switching to Puppeteer:", err.message);
-  }
-
-  // ---- Puppeteer Fallback ----
-  try {
-    console.log("🔹 Running Puppeteer Scraper...");
-    const browser = await puppeteer.launch({ headless: true });
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 60000 });
-
-    const content = await page.evaluate(() => {
-      const text =
-        document.querySelector("article")?.innerText ||
-        document.body.innerText;
-      return text || "Failed to scrape content.";
-    });
-
-    await browser.close();
-    console.log("✅ Puppeteer Scraper Success");
-
-    return content.slice(0, 15000);
+    console.log("✅ Puppeteer Scraper Worked");
+    return article.slice(0, 5000) || "Failed to scrape meaningful content";
   } catch (err: any) {
     console.error("Scraper failed completely:", err.message);
-    return "Failed to scrape content.";
+    return "Failed to scrape content..";
   }
 }
