@@ -1,18 +1,17 @@
-import mongoose from 'mongoose';
+import { MongoClient } from "mongodb";
 
-const MONGODB_URI = process.env.MONGODB_URI!;
-
-if (!MONGODB_URI) throw new Error("MongoDB URI missing");
-
-export async function connectDB() {
-  if (mongoose.connections[0].readyState) return;
-  await mongoose.connect(MONGODB_URI);
-}
-
-const BlogSchema = new mongoose.Schema({
-  url: String,
-  fullText: String,
+const uri = process.env.MONGODB_URI!;
+const client = new MongoClient(uri, {
+  tls: true,
+  tlsAllowInvalidCertificates: true, // ✅ Bypass strict certs in Codespaces
 });
 
-export const Blog =
-  mongoose.models.Blog || mongoose.model("Blog", BlogSchema);
+let db;
+
+export async function connectDB() {
+  if (!db) {
+    await client.connect();
+    db = client.db("blog_summariser");
+  }
+  return db;
+}
